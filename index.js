@@ -25,7 +25,7 @@ io.on('connection', socket => {
         let currentTurn
         {room.turnOrder === room.players.length ? currentTurn = 1 : currentTurn = room.turnOrder + 1}
         io.to(room.id).emit('newGrid', grid)
-        io.to(room.id).emit('newTurn', currentTurn, room)
+        io.to(room.id).emit('newTurn', currentTurn, room, player)
     })
     socket.on('createRoom', (room)  => {
         const roomId = room
