@@ -21,26 +21,47 @@ io.on('connection', socket => {
         //io.emit('updatePlayers', rooms[room], socket.id)
     })
     
-    socket.on('reqTurn', (grid, player, room) => {
-        let currentTurn
-        {room.turnOrder === room.players.length ? currentTurn = 1 : currentTurn = room.turnOrder + 1}
+    socket.on('reqTurn', (grid, player, room, hasWon) => {
+        let currentTurn = room.turnOrder
+        {hasWon ? (room.gameEnd = true, room.winningCombo = hasWon)
+        : 
+        room.turnOrder === room.players.length ? currentTurn = 1 : currentTurn = room.turnOrder + 1}
         io.to(room.id).emit('newGrid', grid)
         io.to(room.id).emit('newTurn', currentTurn, room, player)
     })
-    socket.on('createRoom', (room)  => {
+    socket.on('createRoom', (room, name, isMyTurn, pieces, color)  => {
         const roomId = room
-        rooms[roomId] = {...rooms[roomId], id: roomId, turnOrder: 1, gameStart: false, players: []}
-        socket.join(room)
+        if (rooms.hasOwnProperty(roomId)){
+            socket.emit('error')
+        }
+        else {
+            rooms[roomId] = {...rooms[roomId], id: roomId, turnOrder: 1, gameStart: false, gameEnd: false, players: []}
+            socket.join(room)
+            const id = socket.id
+            const player = {id, name, color, isMyTurn, pieces}
+            const currentRoom = rooms[room]
+            currentRoom.players = [...currentRoom.players, player]
+            io.to(room).emit('updatePlayers', rooms[room])
+        }
     })
-    socket.on('join', room => {
-        socket.join(room)
-    })
-    socket.on("updateRoom", (room, name, color, isMyTurn, pieces) => {
-        const id = socket.id
-        const player = {id, name, color, isMyTurn, pieces}
-        const currentRoom = rooms[room]
-        currentRoom.players = [...currentRoom.players, player]
-        io.to(room).emit('updatePlayers', rooms[room])
+    socket.on('join', (room, name, isMyTurn, pieces, p2Color, p3Color, p4Color) => {
+        if (!rooms.hasOwnProperty(room)){
+            socket.emit('error')
+        }
+        else {
+            socket.join(room)
+            const id = socket.id
+            const currentRoom = rooms[room]
+            const players = rooms[room].players.length
+            let color
+            if (players === 1){color = p2Color}
+            else if (players === 2){color = p3Color}
+            else if (players === 3){color = p4Color}
+
+            const player = {id, name, color, isMyTurn, pieces}
+            currentRoom.players = [...currentRoom.players, player]
+            io.to(room).emit('updatePlayers', rooms[room])
+        }
     })
     socket.on("startGame", (room) => {
         rooms[room].gameStart = true
