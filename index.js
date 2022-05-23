@@ -16,17 +16,36 @@ const io = socket(server);
 let rooms = {}
 
 io.on('connection', socket => {
-    socket.on('disconnect', function(){
-        //delete rooms[room[socket.id]]
-        //io.emit('updatePlayers', rooms[room], socket.id)
-    })
+    // socket.on("disconnecting", (reason) => {
+    //     for (const room of socket.rooms) {
+    //         if (room !== socket.id) {
+    //             const newRoom = {...rooms[room]}
+    //             const newPlayers = newRoom.players.filter(player => player.id !== socket.id)
+    //             const deadPlayer = newRoom.players.filter(player => player.id === socket.id)
+    //             newRoom.players = newPlayers
+    //             io.to(room).emit('playerLeft', deadPlayer[0], newRoom, socket.id);
+    //         }
+    //     }
+    //   });
     
     socket.on('reqTurn', (grid, player, room, hasWon) => {
         let currentTurn = room.turnOrder
         {hasWon ? (room.gameEnd = true, room.winningCombo = hasWon)
-        : 
+        :
         room.turnOrder === room.players.length ? currentTurn = 1 : currentTurn = room.turnOrder + 1}
         io.to(room.id).emit('newGrid', grid)
+        io.to(room.id).emit('newTurn', currentTurn, room, player)
+    })
+    socket.on('restart', (grid, room, player) => {
+        room.gameEnd = false
+        let currentTurn = room.turnOrder
+        room.turnOrder === room.players.length ? currentTurn = 1 : currentTurn = room.turnOrder + 1
+        io.to(room.id).emit('newGrid', grid)
+        io.to(room.id).emit('updateRoom', room)
+        room.players.forEach(player => {
+            io.to(player.id).emit('updateMe', player)
+        })
+        //io.to(room.id).emit('updateMe', room)
         io.to(room.id).emit('newTurn', currentTurn, room, player)
     })
     socket.on('createRoom', (room, name, isMyTurn, pieces, color)  => {
@@ -35,19 +54,24 @@ io.on('connection', socket => {
             socket.emit('error')
         }
         else {
-            rooms[roomId] = {...rooms[roomId], id: roomId, turnOrder: 1, gameStart: false, gameEnd: false, players: []}
+            rooms[roomId] = {...rooms[roomId], id: roomId, turnOrder: 1, gameStart: false, gameEnd: false, winningCombo: [], players: []}
             socket.join(room)
             const id = socket.id
-            const player = {id, name, color, isMyTurn, pieces}
+            const me = {id, name, color, isMyTurn, pieces}
             const currentRoom = rooms[room]
-            currentRoom.players = [...currentRoom.players, player]
-            io.to(room).emit('updatePlayers', rooms[room])
+            currentRoom.players = [...currentRoom.players, me]
+            io.to(room).emit('updateRoom', rooms[room])
+            socket.emit('updateMe', me)
         }
     })
     socket.on('join', (room, name, isMyTurn, pieces, p2Color, p3Color, p4Color) => {
         if (!rooms.hasOwnProperty(room)){
             socket.emit('error')
         }
+        else if (rooms[room].players.length === 4) {
+            //room full
+            socket.emit('fullRoom')
+        } 
         else {
             socket.join(room)
             const id = socket.id
@@ -58,9 +82,10 @@ io.on('connection', socket => {
             else if (players === 2){color = p3Color}
             else if (players === 3){color = p4Color}
 
-            const player = {id, name, color, isMyTurn, pieces}
-            currentRoom.players = [...currentRoom.players, player]
-            io.to(room).emit('updatePlayers', rooms[room])
+            const me = {id, name, color, isMyTurn, pieces}
+            currentRoom.players = [...currentRoom.players, me]
+            io.to(room).emit('updateRoom', rooms[room])
+            socket.emit('updateMe', me)
         }
     })
     socket.on("startGame", (room) => {
