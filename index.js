@@ -33,7 +33,7 @@ io.on('connection', socket => {
         {hasWon ? (room.gameEnd = true, room.winningCombo = hasWon)
         :
         room.turnOrder === room.players.length ? currentTurn = 1 : currentTurn = room.turnOrder + 1}
-        io.to(room.id).emit('newGrid', grid)
+        io.to(room.id).emit('newGrid', grid, room)
         io.to(room.id).emit('newTurn', currentTurn, room, player)
     })
     socket.on('restart', (grid, room, player) => {
@@ -54,7 +54,7 @@ io.on('connection', socket => {
             socket.emit('error')
         }
         else {
-            rooms[roomId] = {...rooms[roomId], id: roomId, turnOrder: 1, gameStart: false, gameEnd: false, winningCombo: [], players: []}
+            rooms[roomId] = {...rooms[roomId], id: roomId, turnOrder: 1, turnNumber: 1, gameStart: false, gameEnd: false, winningCombo: [], players: []}
             socket.join(room)
             const id = socket.id
             const me = {id, name, color, isMyTurn, pieces}
@@ -92,6 +92,13 @@ io.on('connection', socket => {
         rooms[room].gameStart = true
         io.to(room).emit('gameStart', rooms[room])
     })
+    socket.on("addRules", (room, grid, timer, time) => {
+        rooms[room.id].hasTimer = timer
+        rooms[room.id].turnTime = time
+        io.to(room.id).emit('newGrid', grid, room)
+        io.to(room.id).emit('updateRoom', rooms[room.id])
+    })
+
     socket.on('reqRestart', (data) => {
         const room = JSON.parse(data).room
         io.to(room).emit('restart')
